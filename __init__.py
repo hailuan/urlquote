@@ -7,120 +7,169 @@ Usage:
 >>> import os
 >>> # A directory stock contents of url
 >>> urlcontent_directory = tempfile.TemporaryDirectory()
->>> path_directory = urlcontent_directory.name + 'stock_url'
->>> os.makedirs(path_directory)
+>>> path_directory = urlcontent_directory.name + '/'
+>>> TEST_URLS = [
+...     "http://example.com",  # No trailing /
+...     "http://example.com/",  # Trailing /
+...     "https://example.com/",  # https
+...     "ftp://example.com/",  # ftp
+...     "//example.com/",  # No protocol (<- Not sure we should handle this, maybe throw an error)
+...     "dtc://example.com/",  # New protocol (I think we should handle this one, it is a valid URL after all)
+...     "http://example.com/toto_",  # 1 child
+...     "http://example.com//toto",  # Double slash
+...     "http://example.com/toto_/titi____"
+...     "http://example.com/toto#subsection",  # Fragment identifier
+...     "http://example.com/verylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongname",  # Very long name
+...     "http://example.com/toto?param",  # Param
+...     "http://example.com/toto?param=value",  # Param and value
+...     "http://example.com/toto?param=value&param2=toto",  # Multiple params
+...     "http://example.com/toto%20tata",  # Space in a name
+...     "https://en.wiktionary.org/wiki/Ῥόδος", # IRI
+...     "https://www.google.fr/search?q=python+create+a+file+systeme+FAT32&ie=utf-8&oe=utf-8&gws_rd=cr&ei=liE4WdHoGIi_aL3ru4gP#q=les+exemple+url",
+...     "baike.baidu.com/item/刘亦菲",
+...     "http://baike.baidu.com/item/%E5%88%98%E4%BA%A6%E8%8F%B2/136156",
+...     "https://www.google.fr/search?q=fsq&ie=utf-8&oe=utf-8&gws_rd=cr&ei=2Rw4WZiIGcy0aaHmsqgO#q=/",
+...     "https://www.google.fr/search?q=fsq&ie=utf-8&oe=utf-8&gws_rd=cr&ei=2Rw4WZiIGcy0aaHmsqgO#q=/////",
+...     "https://www.google.fr/search?q=fsq&ie=utf-8&oe=utf-8&gws_rd=cr&ei=2Rw4WZiIGcy0aaHmsqgO#q=%2F",
+...     "https://www.google.fr/search?q=fsq&ie=utf-8&oe=utf-8&gws_rd=cr&ei=2Rw4WZiIGcy0aaHmsqgO#q=%252F//",
+...     "localhost:8000/?request=https://abc/Ῥόδος?file#fragment?param=value&param2=value",
+...     "http://localhost:8000/proxy?request=https://abc.xyz/Ῥόδος?file#fragment?param=value&param2=value",
+...     "https://us.hidester.com/proxy.php?u=eJwBQgC9%2F3M6NTg6Im9RWVLInEER%2B2QoY7hjryhadaL9BZy6uSFMTxIuZAvn8ahUZO46XG%2FzapDJHAAlYy1h%2BLIEMcRI3FUiO5NWG%2B0%3D&b=7"
+... ]
 >>> # End test setup
 >>>
 >>> # import urlquote
->>> url_quote = urlquote(path_directory)
->>> url = 'http://gitlab.lan/C3NRD/Ook/issues/3'
+>>> url = 'protocol://domain.tld/dir1/dir2/file#fragment?param=value&param2=value'
 >>> # Transform an url to a path
->>> url_quote.url2filepath(url).lstrip(path_directory)
-'http%3A%2F%2F/gitlab.lan%2F/C3NRD%2F/Ook%2F/issues%2F/3'
->>> # The parent dicrectory
->>> url_quote.url2filepath(url, -1).lstrip(path_directory)
-'http%3A%2F%2F/gitlab.lan%2F/C3NRD%2F/Ook%2F/issues%2F'
->>> # Equivalent
->>> url_quote.parent_directory(url).lstrip(path_directory)
-'http%3A%2F%2F/gitlab.lan%2F/C3NRD%2F/Ook%2F/issues%2F'
->>> # The last element of path is the file name
->>> url_quote.url2filename(url)
-'3'
+>>> url2filename(url)
+'protocol%3A%2F%2F/domain.tld%2F/dir1%2F/dir2%2F/file/%23fragment/%3Fparam/%3Dvalue/%26param2/%3Dvalue_'
 >>> # url2filepath is bijective and filepath2url is function reverse of url2filepath
->>> url == url_quote.filepath2url(url_quote.url2filepath(url))
+>>> test_bijective = True
+>>> for url in TEST_URLS:
+...     test_bijective = test_bijective and url == filename2url(url2filename(url))
+>>> test_bijective
+True
+>>> test_valide = True
+>>> # Create url file
+>>> import logging
+>>> for url in TEST_URLS:
+...     filename = path_directory + url2filename(url)
+...     if (not os.path.exists(os.path.dirname(filename))):
+...         os.makedirs(os.path.dirname(filename))
+...     with open(filename, 'w') as f:
+...         logging.debug(url)
+...         ignore_buff_cpt = f.write(url)
+... # Read a content of url from directory
+>>> for url in TEST_URLS:
+...     filename = path_directory + url2filename(url)
+...     with open(filename, 'r') as f:
+...         test_valide = test_valide and f.read() == url
+>>> test_valide
 True
 """
 import urllib.parse
+import re
+
+path_separator = '/'
+max_length = 254
 
 
-class urlquote:
-    def __init__(self, directory='./', path_separator='/', max_length=254):
-        """Initial the urlquote
+def split_without_remove(url, sep):
+    """Split a string but not remove the key of separator.
+    The key of separator will be located as suffix of element in list.
 
-        change the parametter default for adapt each different OS
+    :param url: type string
+    :param sep: type string, separator
+    :return: a list of string
 
-        :param directory: type string, the path to the directory where the url file stocked
-        :param path_separator: type string, separator of path
-        :param max_length: size maximum of name of directory or file in an O.S.
-        """
 
-        self.directory = directory.rstrip(path_separator) + path_separator
-        self.path_separator = path_separator
-        self.max_length = max_length
+    >>> split_without_remove('a/b/c', '/')
+    ['a/', 'b/', 'c']
+    >>> split_without_remove('a/b/c/', '/')
+    ['a/', 'b/', 'c/']
+    """
+    splited_url = url.split(sep)
+    if len(splited_url) > 1:
+        splited_url = [e + sep for e in splited_url[:-1]] + [splited_url[-1]]
+        if splited_url[-1] == "":
+            del splited_url[-1]
+    return splited_url
 
-    def split_without_remove(self, url, sep):
-        """Split a string but not remove the key of separator
 
-        :param url: type string
-        :param sep: type string, separator
-        :return: a list of string
-        >>> urlq = urlquote()
-        >>> urlq.split_without_remove('a/b/c', '/')
-        ['a/', 'b/', 'c']
-        >>> urlq.split_without_remove('a/b/c/', '/')
-        ['a/', 'b/', 'c/']
-        """
-        splited_url = url.split(sep)
-        if len(splited_url) > 1:
-            splited_url = [e + sep
-                           for e in splited_url[:-1]] + [splited_url[-1]]
-            if splited_url[-1] == "":
-                del splited_url[-1]
-        return splited_url
+def split_withour_remove_prefix(url, sep):
+    """Same as split_without_remove but the key of separator
+    will be located as prefix of element in list.
+    """
+    splited_url = url.split(sep)
+    if len(splited_url) > 1:
+        splited_url = [splited_url[0]] + [sep + e for e in splited_url[1:]]
+        if splited_url[0] == "":
+            del splited_url[0]
+    return splited_url
 
-    def max_len_cut(self, li):
-        """Split the last element of list of string into many
-        separates parts whose length is 254 maximum
-        """
-        if len(li[-1]) <= self.max_length:
-            return li
-        return self.max_len_cut(
-            li[:-1] + [li[-1][:self.max_length]] + [li[-1][self.max_length:]])
 
-    def is_protocol(self, s):
-        """Test if a string is a prefix of protocol"""
-        return s in ['http://', 'https://', 'ftp://']
+def paramurl_split(part_of_url):
+    """Separate all parametter in url and their values"""
+    list_param_url = [part_of_url]
+    keys_special = ['?', '&', '=', '#']
+    for key in keys_special:
+        temp_list = []
+        for elt in list_param_url:
+            temp_list += split_withour_remove_prefix(elt, key)
+        list_param_url = temp_list[:]
+    return list_param_url
 
-    def url2filelistpath(self, url):
-        """Return the list of path's element of a url in directory local
-        """
-        # separate protocole if exists
-        l = self.split_without_remove(url, '//')
-        # separate with '/'
-        url_split = [elt for l1 in [self.split_without_remove(l1, '/')
-                                    if not self.is_protocol(l1) else [l1]
-                                    for l1 in l] for elt in l1]
-        url_quote = []
-        # quote url with percent encode then treat all elements whose leght > 255
-        for string in [urllib.parse.quote(elt, safe='') for elt in url_split]:
-            url_quote += self.max_len_cut([string])
-        return url_quote
 
-    def url2filepath(self, url, parent_dir=None):
-        """Return a path complete to the file of url
-        """
-        return self.directory + self.path_separator.join(
-            self.url2filelistpath(url)[:parent_dir])
+def max_len_cut(li):
+    """Split the last element of list of string into many
+    separates parts whose length is 254 maximum
+    """
+    if len(li[-1]) <= max_length:
+        return li
+    return max_len_cut(
+        li[:-1] + [li[-1][:max_length]] + [li[-1][max_length:]])
 
-    def parent_directory(self, url):
-        """Return the path to 'parent directory' of file of an url"""
-        return self.url2filepath(url, -1)
 
-    def url2filename(self, url):
-        """Return the file name of url
+def is_protocol(s):
+    """Test if a string is a prefix of protocol"""
+    # a protocole in url is a form like 'protocol://'
+    test = re.compile('^\w+://')
+    return bool(test.search(s))
 
-        !!! the file name is not a path complete
-        """
-        return self.url2filelistpath(url)[-1]
 
-    def filepath2url(self, path_file, path_separator='/'):
-        """Decode a path to an url
-        """
-        # remove path 'directory'
-        if self.directory == path_file[:len(self.directory)]:
-            path_file = path_file[len(self.directory):]
-        # decode the path
-        return urllib.parse.unquote("".join(path_file.split(path_separator)))
+def url2filename(url):
+    """Return the list of path's element of a url in directory local
+    """
+    # separate protocole if exists
+    l = split_without_remove(url, '//')
+    # step 1: separate protocol, then separate all elt with '/'
+    url_split_step1 = [elt for l1 in [split_without_remove(l1, '/')
+                                      if not is_protocol(l1) else [l1]
+                                      for l1 in l] for elt in l1]
+    # step 2: separate parametters in url and their value
+    url_split_step2 = []
+    for string in url_split_step1:
+        url_split_step2 += paramurl_split(string)
+    # step 3: encode url
+    url_quote = []
+    # quote url with percent encode then treat all elements whose leght > 255
+    for string in [urllib.parse.quote(elt, safe='') for elt in url_split_step2]:
+        url_quote += max_len_cut([string])
+    # file system of linux does not accept a basename of file have same name as
+    # a folder
+    # add a suffix '_' in basename of file for differentiate
+    url_quote[-1] += '_'
+    return path_separator.join(url_quote)
+
+
+def filename2url(filename):
+    """Decode a filename to an url
+    """
+
+    filename = filename.split(path_separator)
+    filename[-1] = filename[-1][:-1]
+    # decode the path
+    return urllib.parse.unquote("".join(filename))
 
 
 if __name__ == "__main__":
