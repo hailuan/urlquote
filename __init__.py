@@ -8,7 +8,9 @@ Usage:
 >>> # A directory stock contents of url
 >>> urlcontent_directory = tempfile.TemporaryDirectory()
 >>> path_directory = urlcontent_directory.name + '/'
+>>> # list url for test
 >>> TEST_URLS = [
+...     "www.example.com", # simple url
 ...     "http://example.com",  # No trailing /
 ...     "http://example.com/",  # Trailing /
 ...     "https://example.com/",  # https
@@ -17,7 +19,7 @@ Usage:
 ...     "dtc://example.com/",  # New protocol (I think we should handle this one, it is a valid URL after all)
 ...     "http://example.com/toto_",  # 1 child
 ...     "http://example.com//toto",  # Double slash
-...     "http://example.com/toto_/titi____"
+...     "http://example.com/toto_/titi____" ,#child of child
 ...     "http://example.com/toto#subsection",  # Fragment identifier
 ...     "http://example.com/verylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongname",  # Very long name
 ...     "http://example.com/toto?param",  # Param
@@ -26,15 +28,16 @@ Usage:
 ...     "http://example.com/toto%20tata",  # Space in a name
 ...     "https://en.wiktionary.org/wiki/Ῥόδος", # IRI
 ...     "https://www.google.fr/search?q=python+create+a+file+systeme+FAT32&ie=utf-8&oe=utf-8&gws_rd=cr&ei=liE4WdHoGIi_aL3ru4gP#q=les+exemple+url",
-...     "baike.baidu.com/item/刘亦菲",
-...     "http://baike.baidu.com/item/%E5%88%98%E4%BA%A6%E8%8F%B2/136156",
-...     "https://www.google.fr/search?q=fsq&ie=utf-8&oe=utf-8&gws_rd=cr&ei=2Rw4WZiIGcy0aaHmsqgO#q=/",
-...     "https://www.google.fr/search?q=fsq&ie=utf-8&oe=utf-8&gws_rd=cr&ei=2Rw4WZiIGcy0aaHmsqgO#q=/////",
+...     "baike.baidu.com/item/刘亦菲", # word special
+...     "http://baike.baidu.com/item/%E5%88%98%E4%BA%A6%E8%8F%B2/136156", # baike.baidu.com/item/刘亦菲/136156, url with percent key
+...     "https://www.google.fr/search?q=fsq&ie=utf-8&oe=utf-8&gws_rd=cr&ei=2Rw4WZiIGcy0aaHmsqgO#q=/", # / is a value
+...     "https://www.google.fr/search?q=fsq&ie=utf-8&oe=utf-8&gws_rd=cr&ei=2Rw4WZiIGcy0aaHmsqgO#q=/////", # several '/'
 ...     "https://www.google.fr/search?q=fsq&ie=utf-8&oe=utf-8&gws_rd=cr&ei=2Rw4WZiIGcy0aaHmsqgO#q=%2F",
-...     "https://www.google.fr/search?q=fsq&ie=utf-8&oe=utf-8&gws_rd=cr&ei=2Rw4WZiIGcy0aaHmsqgO#q=%252F//",
-...     "localhost:8000/?request=https://abc/Ῥόδος?file#fragment?param=value&param2=value",
-...     "http://localhost:8000/proxy?request=https://abc.xyz/Ῥόδος?file#fragment?param=value&param2=value",
-...     "https://us.hidester.com/proxy.php?u=eJwBQgC9%2F3M6NTg6Im9RWVLInEER%2B2QoY7hjryhadaL9BZy6uSFMTxIuZAvn8ahUZO46XG%2FzapDJHAAlYy1h%2BLIEMcRI3FUiO5NWG%2B0%3D&b=7"
+...     "https://www.google.fr/search?q=fsq&ie=utf-8&oe=utf-8&gws_rd=cr&ei=2Rw4WZiIGcy0aaHmsqgO#q=%252F//", # percent encode 2 time
+...     "localhost:8000/?request=https://abc/Ῥόδος?file#fragment?param=value&param2=value", # parametter's value is a url
+...     "http://localhost:8000/proxy?request=https://abc.xyz/Ῥόδος?file#fragment?param=value&param2=value", # parametter's value is a url with special key
+...     "https://us.hidester.com/proxy.php?u=eJwBQgC9%2F3M6NTg6Im9RWVLInEER%2B2QoY7hjryhadaL9BZy6uSFMTxIuZAvn8ahUZO46XG%2FzapDJHAAlYy1h%2BLIEMcRI3FUiO5NWG%2B0%3D&b=7", # proxy encode an url to base64
+...     "https://www.google.fr/search?q=google+https://abc/%E1%BF%AC%CF%8C%CE%B4%CE%BF%CF%82%3Ffile%23fragment%3Fparam%3Dvalue%26param2%3Dvalue&ie=utf-8&oe=utf-8&gws_rd=cr&ei=OnM5Wc3mAYL7adKFvLgP#q=https://abc/%E1%BF%AC%CF%8C%CE%B4%CE%BF%CF%82?file%23fragment?param%3Dvalue%26param2%3Dvalue" # google search a url with percent encode
 ... ]
 >>> # End test setup
 >>>
@@ -44,27 +47,26 @@ Usage:
 >>> url2filename(url)
 'protocol%3A%2F%2F/domain.tld%2F/dir1%2F/dir2%2F/file/%23fragment/%3Fparam/%3Dvalue/%26param2/%3Dvalue_'
 >>> # url2filepath is bijective and filepath2url is function reverse of url2filepath
+>>> # Test property bijective of function url2filename
 >>> test_bijective = True
 >>> for url in TEST_URLS:
 ...     test_bijective = test_bijective and url == filename2url(url2filename(url))
 >>> test_bijective
 True
->>> test_valide = True
+>>> test_valid = True
 >>> # Create url file
->>> import logging
 >>> for url in TEST_URLS:
 ...     filename = path_directory + url2filename(url)
-...     if (not os.path.exists(os.path.dirname(filename))):
+...     if not os.path.exists(os.path.dirname(filename)):
 ...         os.makedirs(os.path.dirname(filename))
 ...     with open(filename, 'w') as f:
-...         logging.debug(url)
 ...         ignore_buff_cpt = f.write(url)
-... # Read a content of url from directory
+>>> # Read a content of url from directory
 >>> for url in TEST_URLS:
 ...     filename = path_directory + url2filename(url)
 ...     with open(filename, 'r') as f:
-...         test_valide = test_valide and f.read() == url
->>> test_valide
+...         test_valid = test_valid and f.read() == url
+>>> test_valid
 True
 """
 import urllib.parse
