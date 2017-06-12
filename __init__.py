@@ -1,4 +1,4 @@
-"""urlquote transform a url to a file path and upside down
+"""urlquote transform a url to a file name and upside down
 
 Usage:
 
@@ -34,8 +34,8 @@ Usage:
 ...     "https://www.google.fr/search?q=fsq&ie=utf-8&oe=utf-8&gws_rd=cr&ei=2Rw4WZiIGcy0aaHmsqgO#q=/////", # several '/'
 ...     "https://www.google.fr/search?q=fsq&ie=utf-8&oe=utf-8&gws_rd=cr&ei=2Rw4WZiIGcy0aaHmsqgO#q=%2F",
 ...     "https://www.google.fr/search?q=fsq&ie=utf-8&oe=utf-8&gws_rd=cr&ei=2Rw4WZiIGcy0aaHmsqgO#q=%252F//", # percent encode 2 time
-...     "localhost:8000/?request=https://abc/Ῥόδος?file#fragment?param=value&param2=value", # parametter's value is a url
-...     "http://localhost:8000/proxy?request=https://abc.xyz/Ῥόδος?file#fragment?param=value&param2=value", # parametter's value is a url with special key
+...     "localhost:8000/?request=https://abc/Ῥόδος?file#fragment?param=value&param2=value", # parameter's value is a url
+...     "http://localhost:8000/proxy?request=https://abc.xyz/Ῥόδος?file#fragment?param=value&param2=value", # parameter's value is a url with special key
 ...     "https://us.hidester.com/proxy.php?u=eJwBQgC9%2F3M6NTg6Im9RWVLInEER%2B2QoY7hjryhadaL9BZy6uSFMTxIuZAvn8ahUZO46XG%2FzapDJHAAlYy1h%2BLIEMcRI3FUiO5NWG%2B0%3D&b=7", # proxy encode an url to base64
 ...     "https://www.google.fr/search?q=google+https://abc/%E1%BF%AC%CF%8C%CE%B4%CE%BF%CF%82%3Ffile%23fragment%3Fparam%3Dvalue%26param2%3Dvalue&ie=utf-8&oe=utf-8&gws_rd=cr&ei=OnM5Wc3mAYL7adKFvLgP#q=https://abc/%E1%BF%AC%CF%8C%CE%B4%CE%BF%CF%82?file%23fragment?param%3Dvalue%26param2%3Dvalue" # google search a url with percent encode
 ... ]
@@ -98,9 +98,12 @@ def split_without_remove(url, sep):
     return splited_url
 
 
-def split_withour_remove_prefix(url, sep):
+def split_without_remove_prefix(url, sep):
     """Same as split_without_remove but the key of separator
     will be located as prefix of element in list.
+
+    >>> split_without_remove_prefix('&a=b/', '=')
+    ['&a', '=b/']
     """
     splited_url = url.split(sep)
     if len(splited_url) > 1:
@@ -111,13 +114,17 @@ def split_withour_remove_prefix(url, sep):
 
 
 def paramurl_split(part_of_url):
-    """Separate all parametter in url and their values"""
+    """Separate all parameter in url and their values
+
+    >>> paramurl_split('file#fragment?param=value&param2=value')
+    ['file', '#fragment', '?param', '=value', '&param2', '=value']
+    """
     list_param_url = [part_of_url]
     keys_special = ['?', '&', '=', '#']
     for key in keys_special:
         temp_list = []
         for elt in list_param_url:
-            temp_list += split_withour_remove_prefix(elt, key)
+            temp_list += split_without_remove_prefix(elt, key)
         list_param_url = temp_list[:]
     return list_param_url
 
@@ -148,7 +155,7 @@ def url2filename(url):
     url_split_step1 = [elt for l1 in [split_without_remove(l1, '/')
                                       if not is_protocol(l1) else [l1]
                                       for l1 in l] for elt in l1]
-    # step 2: separate parametters in url and their value
+    # step 2: separate parameters in url and their value
     url_split_step2 = []
     for string in url_split_step1:
         url_split_step2 += paramurl_split(string)
