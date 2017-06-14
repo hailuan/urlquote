@@ -8,9 +8,11 @@ Usage:
 >>> # A directory stock contents of url
 >>> urlcontent_directory = tempfile.TemporaryDirectory()
 >>> path_directory = urlcontent_directory.name + '/'
+>>> path_directory =  '/media/nguyen/Ubuntu-MATE/testurlquote/'
 >>> # list url for test
 >>> TEST_URLS = [
-...     "www.example.com", # simple url
+...     "www.example.com", # sample url
+...     "protocol://domain.tld/dir1/dir2/file#fragment?param=value&param2=value", # example sample
 ...     "http://example.com",  # No trailing /
 ...     "http://example.com/",  # Trailing /
 ...     "https://example.com/",  # https
@@ -45,7 +47,7 @@ Usage:
 >>> url = 'protocol://domain.tld/dir1/dir2/file#fragment?param=value&param2=value'
 >>> # Transform an url to a path
 >>> url2filename(url)
-'protocol%3A%2F%2F/domain.tld%2F/dir1%2F/dir2%2F/file/%23fragment/%3Fparam/%3Dvalue/%26param2/%3Dvalue_'
+'protocol%3A%2F%2F/domain.tld%2F/dir1%2F/dir2%2F/file/#fragment/%3Fparam/=value/&param2/=value_'
 >>> # url2filepath is bijective and filepath2url is function reverse of url2filepath
 >>> # Test property bijective of function url2filename
 >>> test_bijective = True
@@ -146,6 +148,17 @@ def is_protocol(s):
     return bool(test.search(s))
 
 
+def percent_quote(chain, characters='%"*./:<>?\\| \t\n\r'):
+    """Quote special character to percent-encode in a chain of string
+
+    >>> percent_quote('élément spécial : & / ^ #', '/')
+    'élément spécial : & %2F ^ #'
+    """
+    for c in characters:
+        chain = chain.replace(c, urllib.parse.quote(c, safe=''))
+    return chain
+
+
 def url2filename(url):
     """Return the list of path's element of a url in directory local
     """
@@ -162,7 +175,7 @@ def url2filename(url):
     # step 3: encode url
     url_quote = []
     # quote url with percent encode then treat all elements whose leght > 255
-    for string in [urllib.parse.quote(elt, safe='') for elt in url_split_step2]:
+    for string in [percent_quote(elt) for elt in url_split_step2]:
         url_quote += max_len_cut([string])
     # file system of linux does not accept a basename of file have same name as
     # a folder
