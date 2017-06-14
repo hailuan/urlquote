@@ -2,13 +2,25 @@
 
 Usage:
 
+>>> # doctest need permission of superuser
+>>> # sudo python3 -m doctest -v __init__.py
 >>> # Test setup
 >>> import tempfile
 >>> import os
+>>> import subprocess
 >>> # A directory stock contents of url
->>> urlcontent_directory = tempfile.TemporaryDirectory()
->>> path_directory = urlcontent_directory.name + '/'
->>> path_directory =  '/media/nguyen/Ubuntu-MATE/testurlquote/'
+>>> dirtmp = tempfile.TemporaryDirectory()
+>>> path_dir_tmp = dirtmp.name + '/'
+>>> # create a file system FAT32 temporary
+>>> cmd = ['dd', 'if=/dev/zero', 'of=' + path_dir_tmp + 'fat.fs', 'bs=1024', 'count=5120']
+>>> output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+>>> cmd = ['mkfs.vfat', path_dir_tmp + 'fat.fs']
+>>> output = subprocess.check_output(cmd,stderr=subprocess.STDOUT)
+>>> dir_fat32 = path_dir_tmp + 'fat32/'
+>>> os.makedirs(dir_fat32)
+>>> cmd = ['mount', '-o', 'umask=000', path_dir_tmp +'fat.fs', dir_fat32]
+>>> output = subprocess.check_output(cmd,stderr=subprocess.STDOUT)
+>>>
 >>> # list url for test
 >>> TEST_URLS = [
 ...     "www.example.com", # sample url
@@ -43,6 +55,14 @@ Usage:
 ... ]
 >>> # End test setup
 >>>
+>>> # invalid name in a FAT32
+>>> try:
+...     os.makedirs(dir_fat32 + 'a>b')
+... except OSError:
+...     raise ValueError('Invalid argument')
+Traceback (most recent call last):
+...
+ValueError: Invalid argument
 >>> # import urlquote
 >>> url = 'protocol://domain.tld/dir1/dir2/file#fragment?param=value&param2=value'
 >>> # Transform an url to a path
@@ -58,18 +78,24 @@ True
 >>> test_valid = True
 >>> # Create url file
 >>> for url in TEST_URLS:
-...     filename = path_directory + url2filename(url)
+...     filename = dir_fat32 + url2filename(url)
 ...     if not os.path.exists(os.path.dirname(filename)):
 ...         os.makedirs(os.path.dirname(filename))
 ...     with open(filename, 'w') as f:
 ...         ignore_buff_cpt = f.write(url)
 >>> # Read a content of url from directory
 >>> for url in TEST_URLS:
-...     filename = path_directory + url2filename(url)
+...     filename = dir_fat32 + url2filename(url)
 ...     with open(filename, 'r') as f:
 ...         test_valid = test_valid and f.read() == url
 >>> test_valid
 True
+>>> # close the FAT32
+>>> cmd = ['umount', path_dir_tmp +'fat.fs', dir_fat32]
+>>> output = subprocess.Popen(cmd)
+>>> ignore = output.wait()
+>>> cmd = ['rm', '-rf', dir_fat32]
+>>> output = subprocess.check_output(cmd)
 """
 import urllib.parse
 import re
@@ -148,7 +174,7 @@ def is_protocol(s):
     return bool(test.search(s))
 
 
-def percent_quote(chain, characters='%"*./:<>?\\| \t\n\r'):
+def percent_quote(chain, characters='%"*:<>?/\\|\t\n\r\x0b\x0c'):
     """Quote special character to percent-encode in a chain of string
 
     >>> percent_quote('élément spécial : & / ^ #', '/')
