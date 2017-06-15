@@ -1,26 +1,23 @@
-"""urlquote transform a url to a file name and upside down
+"""urlquote transform a url to a file name and upside down.
 
 Usage:
 
->>> # doctest need permission of superuser
->>> # sudo python3 -m doctest -v __init__.py
+>>> # add line
+>>> # /tmp/test_urlquote/fat.fs    /tmp/test_urlquote/fat32    vfat     user,noauto,nofail    0    0
+>>> # in /etc/fstab before the test
 >>> # Test setup
->>> import tempfile
 >>> import os
 >>> import subprocess
+>>> from shutil import copy2
 >>> # A directory stock contents of url
->>> dirtmp = tempfile.TemporaryDirectory()
->>> path_dir_tmp = dirtmp.name + '/'
->>> # create a file system FAT32 temporary
->>> cmd = ['dd', 'if=/dev/zero', 'of=' + path_dir_tmp + 'fat.fs', 'bs=1024', 'count=5120']
->>> output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
->>> cmd = ['mkfs.vfat', path_dir_tmp + 'fat.fs']
->>> output = subprocess.check_output(cmd,stderr=subprocess.STDOUT)
->>> dir_fat32 = path_dir_tmp + 'fat32/'
+>>> dirtmp = '/tmp/test_urlquote/'
+>>> dir_fat32 = dirtmp + 'fat32/'
 >>> os.makedirs(dir_fat32)
->>> cmd = ['mount', '-o', 'umask=000', path_dir_tmp +'fat.fs', dir_fat32]
->>> output = subprocess.check_output(cmd,stderr=subprocess.STDOUT)
->>>
+>>> copy2('fat32/fat.fs', dirtmp)
+'/tmp/test_urlquote/fat.fs'
+>>> # mount a FAT32
+>>> cmd = ['mount', dirtmp + 'fat.fs']
+>>> output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
 >>> # list url for test
 >>> TEST_URLS = [
 ...     "www.example.com", # sample url
@@ -31,9 +28,10 @@ Usage:
 ...     "ftp://example.com/",  # ftp
 ...     "//example.com/",  # No protocol (<- Not sure we should handle this, maybe throw an error)
 ...     "dtc://example.com/",  # New protocol (I think we should handle this one, it is a valid URL after all)
-...     "http://example.com/toto_",  # 1 child
+...     "http://example.com/_toto",  # 1 child
 ...     "http://example.com//toto",  # Double slash
-...     "http://example.com/toto_/titi____" ,#child of child
+...     "http://example.com/_toto/_titi" ,#child of child
+...     "http://example.com/_toto/_titi/" , # Trailing /
 ...     "http://example.com/toto#subsection",  # Fragment identifier
 ...     "http://example.com/verylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongnameverylongname",  # Very long name
 ...     "http://example.com/toto?param",  # Param
@@ -67,34 +65,29 @@ ValueError: Invalid argument
 >>> url = 'protocol://domain.tld/dir1/dir2/file#fragment?param=value&param2=value'
 >>> # Transform an url to a path
 >>> url2filename(url)
-'protocol%3A%2F%2F/domain.tld%2F/dir1%2F/dir2%2F/file/#fragment/%3Fparam/=value/&param2/=value_'
+'protocol%3A%2F%2F/domain.tld%2F/dir1%2F/dir2%2F/file/#fragment/%3Fparam/=value/&param2/_=value'
 >>> # url2filepath is bijective and filepath2url is function reverse of url2filepath
 >>> # Test property bijective of function url2filename
->>> test_bijective = True
 >>> for url in TEST_URLS:
-...     test_bijective = test_bijective and url == filename2url(url2filename(url))
->>> test_bijective
-True
->>> test_valid = True
+...     assert url == filename2url(url2filename(url)), "Bijective false " + url
+>>> # Test if all url is valid in FAT32
 >>> # Create url file
 >>> for url in TEST_URLS:
 ...     filename = dir_fat32 + url2filename(url)
 ...     if not os.path.exists(os.path.dirname(filename)):
 ...         os.makedirs(os.path.dirname(filename))
 ...     with open(filename, 'w') as f:
-...         ignore_buff_cpt = f.write(url)
+...         _ignore = f.write(url)
 >>> # Read a content of url from directory
 >>> for url in TEST_URLS:
 ...     filename = dir_fat32 + url2filename(url)
 ...     with open(filename, 'r') as f:
-...         test_valid = test_valid and f.read() == url
->>> test_valid
-True
+...         assert f.read() == url, "Can't read " + url
+>>>
 >>> # close the FAT32
->>> cmd = ['umount', path_dir_tmp +'fat.fs', dir_fat32]
->>> output = subprocess.Popen(cmd)
->>> ignore = output.wait()
->>> cmd = ['rm', '-rf', dir_fat32]
+>>> cmd = ['umount', dirtmp + 'fat.fs']
+>>> output = subprocess.check_output(cmd,stderr=subprocess.STDOUT)
+>>> cmd = ['rm', '-rf', dirtmp]
 >>> output = subprocess.check_output(cmd)
 """
 import urllib.parse
@@ -142,7 +135,7 @@ def split_without_remove_prefix(url, sep):
 
 
 def paramurl_split(part_of_url):
-    """Separate all parameter in url and their values
+    """Separate all parameter in url and their values.
 
     >>> paramurl_split('file#fragment?param=value&param2=value')
     ['file', '#fragment', '?param', '=value', '&param2', '=value']
@@ -168,14 +161,14 @@ def max_len_cut(li):
 
 
 def is_protocol(s):
-    """Test if a string is a prefix of protocol"""
+    """Test if a string is a prefix of protocol."""
     # a protocole in url is a form like 'protocol://'
     test = re.compile('^\w+://')
     return bool(test.search(s))
 
 
 def percent_quote(chain, characters='%"*:<>?/\\|\t\n\r\x0b\x0c'):
-    """Quote special character to percent-encode in a chain of string
+    """Quote special character to percent-encode in a chain of string.
 
     >>> percent_quote('élément spécial : & / ^ #', '/')
     'élément spécial : & %2F ^ #'
@@ -186,7 +179,7 @@ def percent_quote(chain, characters='%"*:<>?/\\|\t\n\r\x0b\x0c'):
 
 
 def url2filename(url):
-    """Return the list of path's element of a url in directory local
+    """Return the list of path's element of a url in directory local.
     """
     # separate protocole if exists
     l = split_without_remove(url, '//')
@@ -205,17 +198,17 @@ def url2filename(url):
         url_quote += max_len_cut([string])
     # file system of linux does not accept a basename of file have same name as
     # a folder
-    # add a suffix '_' in basename of file for differentiate
-    url_quote[-1] += '_'
+    # add a prefix '_' in basename of file for differentiate
+    url_quote[-1] = '_' + url_quote[-1]
     return path_separator.join(url_quote)
 
 
 def filename2url(filename):
-    """Decode a filename to an url
+    """Decode a filename to an url.
     """
 
     filename = filename.split(path_separator)
-    filename[-1] = filename[-1][:-1]
+    filename[-1] = filename[-1][1:]
     # decode the path
     return urllib.parse.unquote("".join(filename))
 
